@@ -15,13 +15,13 @@ function calculateSimpleRevenue(purchase, _product) {
     const discountRate = 1 - (discount / 100);
     const revenue = sale * quantity * discountRate;
     
-    return Number(revenue.toFixed(2));
+    // Округляем до 2 знаков для избежания погрешностей
+    return Math.round(revenue * 100) / 100;
 }
 
-// @TODO: Расчет бонусов от операции
 /**
- * Функция для расчета бонусов
- * @param index порядковый номер в отсортированном массиве
+ * Функция для расчета бонусов на основе позиции в рейтинге
+ * @param index порядковый номер в отсортированном массиве (0-индексация)
  * @param total общее число продавцов
  * @param seller карточка продавца
  * @returns {number}
@@ -30,22 +30,28 @@ function calculateBonusByProfit(index, total, seller) {
     const profit = seller.profit || 0;
     const position = index + 1;
     
+    let bonusPercent = 0;
+    
     if (position === 1) {
-        return Number((profit * 0.15).toFixed(2));
+        bonusPercent = 0.15;
     } else if (position === 2 || position === 3) {
-        return Number((profit * 0.10).toFixed(2));
+        bonusPercent = 0.10;
     } else if (position === total) {
-        return 0;
+        bonusPercent = 0;
     } else {
-        return Number((profit * 0.05).toFixed(2));
+        bonusPercent = 0.05;
     }
+    
+    const bonus = profit * bonusPercent;
+    // Округляем до 2 знаков
+    return Math.round(bonus * 100) / 100;
 }
 
 /**
  * Функция для анализа данных продаж
  * @param data объект с данными (sellers, products, purchase_records)
  * @param options объект с функциями calculateRevenue и calculateBonus
- * @returns {Object} отчёт с результатами анализа
+ * @returns {Array} массив с результатами анализа
  */
 function analyzeSalesData(data, options) {
     // Проверка входных данных
@@ -53,16 +59,28 @@ function analyzeSalesData(data, options) {
         throw new Error('Некорректные данные: ожидается объект с данными');
     }
     
-    if (!data.sellers || !Array.isArray(data.sellers) || data.sellers.length === 0) {
-        throw new Error('Некорректные данные: sellers должен быть непустым массивом');
+    if (!data.sellers || !Array.isArray(data.sellers)) {
+        throw new Error('Некорректные данные: sellers должен быть массивом');
     }
     
-    if (!data.products || !Array.isArray(data.products) || data.products.length === 0) {
-        throw new Error('Некорректные данные: products должен быть непустым массивом');
+    if (!data.products || !Array.isArray(data.products)) {
+        throw new Error('Некорректные данные: products должен быть массивом');
     }
     
-    if (!data.purchase_records || !Array.isArray(data.purchase_records) || data.purchase_records.length === 0) {
-        throw new Error('Некорректные данные: purchase_records должен быть непустым массивом');
+    if (!data.purchase_records || !Array.isArray(data.purchase_records)) {
+        throw new Error('Некорректные данные: purchase_records должен быть массивом');
+    }
+    
+    if (data.sellers.length === 0) {
+        throw new Error('Некорректные данные: sellers не должен быть пустым');
+    }
+    
+    if (data.products.length === 0) {
+        throw new Error('Некорректные данные: products не должен быть пустым');
+    }
+    
+    if (data.purchase_records.length === 0) {
+        throw new Error('Некорректные данные: purchase_records не должен быть пустым');
     }
     
     // Проверка опций
@@ -85,7 +103,7 @@ function analyzeSalesData(data, options) {
     const sellersMap = {};
     for (let i = 0; i < data.sellers.length; i++) {
         const seller = data.sellers[i];
-        sellersMap[seller.seller_id || seller.id] = seller;
+        sellersMap[seller.id] = seller;
     }
     
     const productsMap = {};
@@ -96,46 +114,39 @@ function analyzeSalesData(data, options) {
     
     // Подготовка статистики продавцов
     const sellerStats = {};
+    for (let i = 0; i < data.sellers.length; i++) {
+        const seller = data.sellers[i];
+        sellerStats[seller.id] = {
+            seller_id: seller.id,
+            name: seller.first_name + ' ' + seller.last_name,
+            revenue: 0,
+            profit: 0,
+            sales_count: 0,
+            products_sold: {}
+        };
+    }
     
     // Обработка записей о продажах
     for (let i = 0; i < data.purchase_records.length; i++) {
         const record = data.purchase_records[i];
         const sellerId = record.seller_id;
         
-        // Получаем информацию о продавце
-        const seller = sellersMap[sellerId];
-        if (!seller) {
+        // Получаем статистику продавца
+        const stats = sellerStats[sellerId];
+        if (!stats) {
             continue; // Пропускаем записи с неизвестным продавцом
         }
         
-        // Инициализируем статистику продавца, если её ещё нет
-        if (!sellerStats[sellerId]) {
-            sellerStats[sellerId] = {
-                seller_id: sellerId,
-                name: (seller.first_name || '') + ' ' + (seller.last_name || ''),
-                revenue: 0,
-                profit: 0,
-                sales_count: 0,
-                products_sold: {}
-            };
-        }
-        
-        const stats = sellerStats[sellerId];
+        // Увеличиваем счетчик продаж (чеков)
         stats.sales_count++;
         
-        // Определяем, где находятся товары: в record.items или непосредственно в record
-        let items = [];
-        if (record.items && Array.isArray(record.items)) {
-            items = record.items;
-        } else if (record.product_sku) {
-            // Если запись содержит один товар напрямую
-            items = [record];
-        }
+        // Получаем товары из чека
+        const items = record.items || [];
         
         // Обрабатываем каждый товар
         for (let j = 0; j < items.length; j++) {
             const item = items[j];
-            const productSku = item.sku || item.product_sku;
+            const productSku = item.sku;
             const product = productsMap[productSku];
             
             if (!product) {
@@ -144,10 +155,10 @@ function analyzeSalesData(data, options) {
             
             const quantity = item.quantity || 0;
             const discount = item.discount || 0;
-            const salePrice = item.sale_price || item.sale || 0;
+            const salePrice = item.sale_price || 0;
             
             // Расчет себестоимости
-            const costPrice = product.cost_price || product.purchase_price || 0;
+            const costPrice = product.purchase_price || 0;
             const cost = costPrice * quantity;
             
             // Расчет выручки
@@ -158,18 +169,13 @@ function analyzeSalesData(data, options) {
                 quantity: quantity
             };
             
-            let revenue = 0;
-            try {
-                revenue = calculateRevenue(purchaseData, product);
-                if (isNaN(revenue)) revenue = 0;
-            } catch (e) {
-                revenue = 0;
-            }
+            let revenue = calculateRevenue(purchaseData, product);
+            if (isNaN(revenue)) revenue = 0;
             
             // Расчет прибыли
             const profit = revenue - cost;
             
-            // Обновление статистики
+            // Обновление статистики (накапливаем без округления)
             stats.revenue += revenue;
             stats.profit += profit;
             
@@ -202,13 +208,8 @@ function analyzeSalesData(data, options) {
         const seller = sellersArray[i];
         
         // Рассчитываем бонус
-        let bonus = 0;
-        try {
-            bonus = calculateBonus(i, total, { profit: seller.profit });
-            if (isNaN(bonus)) bonus = 0;
-        } catch (e) {
-            bonus = 0;
-        }
+        let bonus = calculateBonus(i, total, { profit: seller.profit });
+        if (isNaN(bonus)) bonus = 0;
         
         // Формируем топ-10 товаров
         const productsList = [];
@@ -229,10 +230,10 @@ function analyzeSalesData(data, options) {
         // Берем первые 10
         const topProducts = productsList.slice(0, 10);
         
-        // Округляем значения
-        const revenue = Number(seller.revenue.toFixed(2));
-        const profit = Number(seller.profit.toFixed(2));
-        const bonusAmount = Number(bonus.toFixed(2));
+        // Округляем значения до 2 знаков (используем toFixed для точного соответствия)
+        const revenue = parseFloat(seller.revenue.toFixed(2));
+        const profit = parseFloat(seller.profit.toFixed(2));
+        const bonusAmount = parseFloat(bonus.toFixed(2));
         
         // Добавляем в результат
         result.push({
