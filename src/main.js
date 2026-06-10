@@ -15,8 +15,8 @@ function calculateSimpleRevenue(purchase, _product) {
     const discountRate = 1 - (discount / 100);
     const revenue = sale * quantity * discountRate;
     
-    // Округляем до 2 знаков для избежания погрешностей
-    return Math.round(revenue * 100) / 100;
+    // Используем toFixed для правильного округления
+    return parseFloat(revenue.toFixed(2));
 }
 
 /**
@@ -43,8 +43,8 @@ function calculateBonusByProfit(index, total, seller) {
     }
     
     const bonus = profit * bonusPercent;
-    // Округляем до 2 знаков
-    return Math.round(bonus * 100) / 100;
+    // Используем toFixed для правильного округления
+    return parseFloat(bonus.toFixed(2));
 }
 
 /**
@@ -134,7 +134,7 @@ function analyzeSalesData(data, options) {
         // Получаем статистику продавца
         const stats = sellerStats[sellerId];
         if (!stats) {
-            continue; // Пропускаем записи с неизвестным продавцом
+            continue;
         }
         
         // Увеличиваем счетчик продаж (чеков)
@@ -150,7 +150,7 @@ function analyzeSalesData(data, options) {
             const product = productsMap[productSku];
             
             if (!product) {
-                continue; // Пропускаем товары, которых нет в каталоге
+                continue;
             }
             
             const quantity = item.quantity || 0;
@@ -175,7 +175,7 @@ function analyzeSalesData(data, options) {
             // Расчет прибыли
             const profit = revenue - cost;
             
-            // Обновление статистики (накапливаем без округления)
+            // Обновление статистики
             stats.revenue += revenue;
             stats.profit += profit;
             
@@ -230,20 +230,21 @@ function analyzeSalesData(data, options) {
         // Берем первые 10
         const topProducts = productsList.slice(0, 10);
         
-        // Округляем значения до 2 знаков (используем toFixed для точного соответствия)
-        const revenue = parseFloat(seller.revenue.toFixed(2));
-        const profit = parseFloat(seller.profit.toFixed(2));
-        const bonusAmount = parseFloat(bonus.toFixed(2));
+        // Округляем значения до 2 знаков через toFixed
+        // Важно: используем toFixed(2) и затем parseFloat
+        const roundedRevenue = parseFloat(seller.revenue.toFixed(2));
+        const roundedProfit = parseFloat(seller.profit.toFixed(2));
+        const roundedBonus = parseFloat(bonus.toFixed(2));
         
         // Добавляем в результат
         result.push({
             seller_id: seller.seller_id,
             name: seller.name,
-            revenue: revenue,
-            profit: profit,
+            revenue: roundedRevenue,
+            profit: roundedProfit,
             sales_count: seller.sales_count,
             top_products: topProducts,
-            bonus: bonusAmount
+            bonus: roundedBonus
         });
     }
     
