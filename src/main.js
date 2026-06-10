@@ -11,12 +11,10 @@ function calculateSimpleRevenue(purchase, _product) {
     const discount = purchase.discount || 0;
     const sale = purchase.sale || purchase.sale_price || 0;
     const quantity = purchase.quantity || 0;
-    
-    const discountRate = 1 - (discount / 100);
-    const revenue = sale * quantity * discountRate;
-    
-    // Используем toFixed для правильного округления
-    return parseFloat(revenue.toFixed(2));
+
+    const discountRate = 1 - discount / 100;
+
+    return sale * quantity * discountRate;
 }
 
 /**
@@ -29,9 +27,9 @@ function calculateSimpleRevenue(purchase, _product) {
 function calculateBonusByProfit(index, total, seller) {
     const profit = seller.profit || 0;
     const position = index + 1;
-    
+
     let bonusPercent = 0;
-    
+
     if (position === 1) {
         bonusPercent = 0.15;
     } else if (position === 2 || position === 3) {
@@ -41,10 +39,8 @@ function calculateBonusByProfit(index, total, seller) {
     } else {
         bonusPercent = 0.05;
     }
-    
-    const bonus = profit * bonusPercent;
-    // Используем toFixed для правильного округления
-    return parseFloat(bonus.toFixed(2));
+
+    return profit * bonusPercent;
 }
 
 /**
